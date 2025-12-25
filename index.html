@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クリップボード画像保存ツール</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .paste-area {
+            transition: all 0.3s ease;
+            background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%23CBD5E1FF' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+        }
+        .paste-area.active {
+            background-color: #eff6ff;
+            background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%233B82F6FF' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+            transform: scale(1.01);
+        }
+        /* Scrollbar customization */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+    </style>
+</head>
+<body class="text-slate-800 h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-white shadow-sm z-10 flex-none">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-clipboard-check text-blue-500 text-2xl"></i>
+                <h1 class="text-xl font-bold text-slate-800">Clipboard Image Saver</h1>
+            </div>
+            <div class="text-sm text-slate-500 hidden sm:block">
+                Ctrl+V で画像をすぐに読み込みます
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow flex flex-col lg:flex-row h-full overflow-hidden">
+        
+        <!-- Left Panel: Main Workspace -->
+        <div class="flex-grow flex flex-col p-4 lg:p-6 overflow-y-auto w-full lg:w-2/3 bg-slate-50">
+            
+            <!-- Paste Trigger Area / Preview -->
+            <div id="pasteZone" class="paste-area relative flex flex-col items-center justify-center min-h-[400px] flex-grow rounded-2xl bg-white shadow-sm cursor-pointer group">
+                
+                <!-- Initial State: Instructions -->
+                <div id="instructionText" class="text-center p-8 transition-opacity duration-300">
+                    <div class="mb-4 text-slate-300 group-hover:text-blue-400 transition-colors duration-300">
+                        <i class="fa-regular fa-image text-8xl"></i>
+                    </div>
+                    <h2 class="text-2xl font-bold text-slate-700 mb-2">ここに画像をペースト</h2>
+                    <p class="text-slate-500 mb-6">Ctrl + V (または Cmd + V)</p>
+                    
+                    <button id="pasteBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mx-auto">
+                        <i class="fa-solid fa-paste"></i>
+                        クリップボードから読み込む
+                    </button>
+                    <p class="text-xs text-slate-400 mt-3">※ ブラウザの権限許可が必要な場合があります</p>
+                </div>
+
+                <!-- Preview State (Hidden initially) -->
+                <div id="previewContainer" class="hidden absolute inset-0 flex flex-col p-4 w-full h-full">
+                    <div class="flex-grow flex items-center justify-center overflow-hidden bg-slate-100 rounded-lg border border-slate-200 relative checkerboard">
+                        <img id="mainPreview" src="" alt="Preview" class="max-w-full max-h-full object-contain shadow-lg">
+                        
+                        <!-- Image Info Overlay -->
+                        <div class="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                            <span id="imgDimensions">0 x 0 px</span> • <span id="imgSize">0 KB</span>
+                        </div>
+                    </div>
+
+                    <!-- Action Bar -->
+                    <div class="mt-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between flex-shrink-0">
+                        <div class="flex items-center gap-2 w-full sm:w-auto">
+                            <input type="text" id="fileNameInput" value="clipboard_image" class="border border-slate-300 rounded px-3 py-2 text-sm w-full sm:w-48 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="ファイル名">
+                        </div>
+                        
+                        <div class="flex gap-2 w-full sm:w-auto justify-end">
+                            <button onclick="downloadImage('png')" class="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-download"></i> PNG
+                            </button>
+                            <button onclick="downloadImage('jpeg')" class="flex-1 sm:flex-none bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-download"></i> JPG
+                            </button>
+                            <button onclick="clearCurrent()" class="px-3 py-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="クリア">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: History Gallery -->
+        <div class="w-full lg:w-1/3 bg-white border-l border-slate-200 flex flex-col h-[300px] lg:h-full">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i> 履歴
+                </h3>
+                <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">
+                    すべて削除
+                </button>
+            </div>
+            
+            <div id="historyList" class="flex-grow overflow-y-auto p-4 space-y-3">
+                <!-- Empty State for History -->
+                <div id="historyEmpty" class="text-center py-10 text-slate-400">
+                    <p class="text-sm">履歴はまだありません</p>
+                </div>
+                <!-- Items will be injected here via JS -->
+            </div>
+        </div>
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2">
+        <i class="fa-solid fa-check-circle text-green-400"></i>
+        <span id="toastMsg">画像を読み込みました</span>
+    </div>
+
+    <script>
+        // DOM Elements
+        const pasteZone = document.getElementById('pasteZone');
+        const instructionText = document.getElementById('instructionText');
+        const previewContainer = document.getElementById('previewContainer');
+        const mainPreview = document.getElementById('mainPreview');
+        const pasteBtn = document.getElementById('pasteBtn');
+        const historyList = document.getElementById('historyList');
+        const historyEmpty = document.getElementById('historyEmpty');
+        const fileNameInput = document.getElementById('fileNameInput');
+        const imgDimensions = document.getElementById('imgDimensions');
+        const imgSize = document.getElementById('imgSize');
+
+        // State
+        let currentBlob = null;
+        let history = [];
+
+        // Global Paste Event
+        document.addEventListener('paste', handlePasteEvent);
+
+        // Click Paste Button
+        pasteBtn.addEventListener('click', async () => {
+            try {
+                const clipboardItems = await navigator.clipboard.read();
+                let imageFound = false;
+
+                for (const item of clipboardItems) {
+                    // Check for images
+                    const imageType = item.types.find(type => type.startsWith('image/'));
+                    if (imageType) {
+                        const blob = await item.getType(imageType);
+                        processImage(blob);
+                        imageFound = true;
+                        break;
+                    }
+                }
+                
+                if (!imageFound) {
+                    showToast('クリップボードに画像が見つかりませんでした', true);
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('クリップボードの読み取りに失敗しました。Ctrl+Vを試してください。', true);
+            }
+        });
+
+        // Handle Paste Event
+        function handlePasteEvent(e) {
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            let blob = null;
+
+            for (let i = 0; i < items.length; i++) {
+                if (items[i].type.indexOf('image') !== -1) {
+                    blob = items[i].getAsFile();
+                    break;
+                }
+            }
+
+            if (blob) {
+                processImage(blob);
+            } else {
+                // Ignore text pastes silently unless user specifically focused the input
+                if (document.activeElement !== fileNameInput) {
+                    showToast('画像データが含まれていません', true);
+                }
+            }
+        }
+
+        // Process the Blob
+        function processImage(blob) {
+            currentBlob = blob;
+            const url = URL.createObjectURL(blob);
+            
+            // Setup Main Preview
+            mainPreview.onload = function() {
+                imgDimensions.textContent = `${this.naturalWidth} x ${this.naturalHeight} px`;
+                imgSize.textContent = formatBytes(blob.size);
+            };
+            mainPreview.src = url;
+
+            // Update UI
+            instructionText.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+            pasteZone.classList.add('border-blue-400'); // Visual cue
+
+            // Add to History
+            addToHistory(url, blob);
+            
+            showToast('画像を読み込みました！');
+
+            // Reset file name for new image
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+            fileNameInput.value = `image_${timestamp}`;
+        }
+
+        // Add to History Sidebar
+        function addToHistory(url, blob) {
+            historyEmpty.classList.add('hidden');
+            
+            const id = Date.now();
+            const historyItem = document.createElement('div');
+            historyItem.className = 'bg-slate-50 p-2 rounded-lg border border-slate-200 hover:shadow-md transition-shadow group flex gap-3 animate-fade-in';
+            historyItem.innerHTML = `
+                <div class="w-20 h-20 bg-slate-200 rounded overflow-hidden flex-shrink-0 relative checkerboard cursor-pointer" onclick="restoreFromHistory(${id})">
+                    <img src="${url}" class="w-full h-full object-cover">
+                </div>
+                <div class="flex-grow flex flex-col justify-between overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div class="text-xs text-slate-500 font-mono truncate">ID: ${id.toString().slice(-6)}</div>
+                        <button onclick="removeHistoryItem(this, ${id})" class="text-slate-300 hover:text-red-400 transition-colors p-1">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="downloadFromHistory(${id}, 'png')" class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 hover:border-emerald-300 text-xs py-1 rounded text-slate-600 transition-colors">
+                            PNG
+                        </button>
+                        <button onclick="downloadFromHistory(${id}, 'jpeg')" class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 hover:border-sky-300 text-xs py-1 rounded text-slate-600 transition-colors">
+                            JPG
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            // Add to data structure
+            history.push({ id, url, blob });
+            
+            // Prepend to list
+            historyList.insertBefore(historyItem, historyList.firstChild);
+
+            // Limit history to 20 items to save memory
+            if (history.length > 20) {
+                const lastItem = historyList.lastElementChild;
+                const lastData = history.shift(); // Remove from array (FIFO - actually oldest is at end of array? No, simple prepend logic means oldest is last in DOM)
+                // Correct logic: remove oldest. Since we prepend, the oldest is the last child.
+                if (lastItem) {
+                    historyList.removeChild(lastItem);
+                    // Also find and revoke URL to free memory
+                    // (Simplified for this demo, keeping array sync is slightly more complex)
+                }
+            }
+        }
+
+        // Restore image from history to main view
+        window.restoreFromHistory = function(id) {
+            const item = history.find(h => h.id === id);
+            if (item) {
+                currentBlob = item.blob;
+                mainPreview.src = item.url;
+                instructionText.classList.add('hidden');
+                previewContainer.classList.remove('hidden');
+                fileNameInput.value = `restored_${id}`;
+                showToast('履歴から復元しました');
+            }
+        };
+
+        window.removeHistoryItem = function(element, id) {
+            // Remove from DOM
+            element.closest('.group').remove();
+            
+            // Remove from array and revoke URL
+            const index = history.findIndex(h => h.id === id);
+            if (index !== -1) {
+                // URL.revokeObjectURL(history[index].url); // Optional: manage memory strictly
+                history.splice(index, 1);
+            }
+
+            if (historyList.children.length <= 1) { // 1 because of the hidden empty message
+                historyEmpty.classList.remove('hidden');
+            }
+        };
+
+        window.clearHistory = function() {
+            // Remove all items except the empty message
+            while (historyList.children.length > 1) {
+                historyList.removeChild(historyList.lastChild);
+            }
+            history = [];
+            historyEmpty.classList.remove('hidden');
+            showToast('履歴を削除しました');
+        };
+
+        // Download Functions
+        window.downloadImage = function(format) {
+            if (!currentBlob) return;
+            triggerDownload(currentBlob, fileNameInput.value, format);
+        };
+
+        window.downloadFromHistory = function(id, format) {
+            const item = history.find(h => h.id === id);
+            if (item) {
+                triggerDownload(item.blob, `image_${id}`, format);
+            }
+        };
+
+        function triggerDownload(blob, filename, format) {
+            if (!filename) filename = 'image';
+            
+            // Create a canvas to handle format conversion
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+
+                let mimeType = 'image/png';
+                if (format === 'jpeg') mimeType = 'image/jpeg';
+
+                const dataUrl = canvas.toDataURL(mimeType, 0.95); // 0.95 quality for jpg
+                
+                const link = document.createElement('a');
+                link.href = dataUrl;
+                link.download = `${filename}.${format === 'jpeg' ? 'jpg' : 'png'}`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                showToast(`保存しました: ${link.download}`);
+            };
+            img.src = URL.createObjectURL(blob);
+        }
+
+        // UI Helpers
+        window.clearCurrent = function() {
+            currentBlob = null;
+            mainPreview.src = '';
+            previewContainer.classList.add('hidden');
+            instructionText.classList.remove('hidden');
+            pasteZone.classList.remove('border-blue-400');
+            fileNameInput.value = 'clipboard_image';
+        };
+
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const icon = toast.querySelector('i');
+            
+            toastMsg.textContent = message;
+            
+            if (isError) {
+                icon.className = 'fa-solid fa-circle-exclamation text-red-400';
+            } else {
+                icon.className = 'fa-solid fa-check-circle text-green-400';
+            }
+
+            toast.classList.remove('opacity-0', 'translate-y-4');
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-4');
+            }, 3000);
+        }
+
+        function formatBytes(bytes, decimals = 2) {
+            if (!+bytes) return '0 Bytes';
+            const k = 1024;
+            const dm = decimals < 0 ? 0 : decimals;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+        }
+
+        // Drag and Drop (Bonus)
+        pasteZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            pasteZone.classList.add('active');
+        });
+        pasteZone.addEventListener('dragleave', () => {
+            pasteZone.classList.remove('active');
+        });
+        pasteZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            pasteZone.classList.remove('active');
+            
+            if (e.dataTransfer.files.length > 0) {
+                const file = e.dataTransfer.files[0];
+                if (file.type.startsWith('image/')) {
+                    processImage(file);
+                } else {
+                    showToast('画像ファイルではありません', true);
+                }
+            }
+        });
+
+        // Add checkerboard pattern via CSS for transparent images
+        const style = document.createElement('style');
+        style.textContent = `
+            .checkerboard {
+                background-image: 
+                    linear-gradient(45deg, #e5e7eb 25%, transparent 25%), 
+                    linear-gradient(-45deg, #e5e7eb 25%, transparent 25%), 
+                    linear-gradient(45deg, transparent 75%, #e5e7eb 75%), 
+                    linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+                background-size: 20px 20px;
+                background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+</body>
+</html>
