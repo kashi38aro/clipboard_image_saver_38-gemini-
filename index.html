@@ -1,18 +1,19 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>クリップボード画像保存ツール</title>
+    <title>clipboard_image_saver_38</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <script>
         tailwind.config = {
+            darkMode: 'class',
             theme: {
                 extend: {
                     colors: {
-                        primary: '#3b82f6',
-                        secondary: '#64748b',
+                        primary: '#1d9bf0', /* Twitter Blue-like color */
+                        secondary: '#71767b',
                     }
                 }
             }
@@ -24,15 +25,30 @@
             font-family: 'Noto Sans JP', sans-serif;
             background-color: #f3f4f6;
         }
+        /* Dark mode body background override handled by Tailwind class */
+        
         .paste-area {
             transition: all 0.3s ease;
             background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%23CBD5E1FF' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
         }
+        
+        /* Dark mode dashed border adjustment - using Zinc color */
+        html.dark .paste-area {
+            background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%233f3f46' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+        }
+
         .paste-area.active {
             background-color: #eff6ff;
             background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%233B82F6FF' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
             transform: scale(1.01);
         }
+        
+        html.dark .paste-area.active {
+            background-color: #000000;
+            border-color: #1d9bf0;
+            background-image: url("data:image/svg+xml,%3csvg width='100%25' height='100%25' xmlns='http://www.w3.org/2000/svg'%3e%3crect width='100%25' height='100%25' fill='none' rx='16' ry='16' stroke='%231d9bf0' stroke-width='3' stroke-dasharray='12%2c 12' stroke-dashoffset='0' stroke-linecap='square'/%3e%3c/svg%3e");
+        }
+
         /* Scrollbar customization */
         ::-webkit-scrollbar {
             width: 8px;
@@ -41,57 +57,72 @@
         ::-webkit-scrollbar-track {
             background: #f1f1f1; 
         }
+        html.dark ::-webkit-scrollbar-track {
+            background: #000000; 
+        }
         ::-webkit-scrollbar-thumb {
             background: #c1c1c1; 
             border-radius: 4px;
         }
+        html.dark ::-webkit-scrollbar-thumb {
+            background: #3f3f46; 
+        }
         ::-webkit-scrollbar-thumb:hover {
             background: #a8a8a8; 
         }
+        html.dark ::-webkit-scrollbar-thumb:hover {
+            background: #52525b; 
+        }
     </style>
 </head>
-<body class="text-slate-800 h-screen flex flex-col">
+<body class="text-zinc-800 dark:text-zinc-200 h-screen flex flex-col bg-gray-100 dark:bg-black transition-colors duration-300">
 
     <!-- Header -->
-    <header class="bg-white shadow-sm z-10 flex-none">
+    <header class="bg-white dark:bg-black shadow-sm dark:shadow-none dark:border-b dark:border-zinc-800 z-10 flex-none transition-colors duration-300">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <div class="flex items-center gap-2">
-                <i class="fa-solid fa-clipboard-check text-blue-500 text-2xl"></i>
-                <h1 class="text-xl font-bold text-slate-800">Clipboard Image Saver</h1>
+                <i class="fa-solid fa-clipboard-check text-blue-500 dark:text-blue-400 text-2xl"></i>
+                <h1 class="text-xl font-bold text-zinc-800 dark:text-white">Clipboard Image Saver</h1>
             </div>
-            <div class="text-sm text-slate-500 hidden sm:block">
-                Ctrl+V で画像をすぐに読み込みます
+            <div class="flex items-center gap-4">
+                <div class="text-sm text-zinc-500 dark:text-zinc-500 hidden sm:block">
+                    Ctrl+V で画像をすぐに読み込みます
+                </div>
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-zinc-100 dark:hover:bg-zinc-900 text-zinc-600 dark:text-zinc-400 transition-colors" title="テーマ切り替え">
+                    <i id="themeIcon" class="fa-solid fa-sun"></i>
+                </button>
             </div>
         </div>
     </header>
 
     <!-- Main Content -->
-    <main class="flex-grow flex flex-col lg:flex-row h-full overflow-hidden">
+    <main class="flex-grow flex flex-col lg:flex-row h-full overflow-hidden relative">
         
         <!-- Left Panel: Main Workspace -->
-        <div class="flex-grow flex flex-col p-4 lg:p-6 overflow-y-auto w-full lg:w-2/3 bg-slate-50">
+        <div class="flex-grow flex flex-col p-4 lg:p-6 overflow-y-auto w-full lg:w-2/3 bg-zinc-50 dark:bg-black transition-colors duration-300">
             
             <!-- Paste Trigger Area / Preview -->
-            <div id="pasteZone" class="paste-area relative flex flex-col items-center justify-center min-h-[400px] flex-grow rounded-2xl bg-white shadow-sm cursor-pointer group">
+            <div id="pasteZone" class="paste-area relative flex flex-col items-center justify-center min-h-[400px] flex-grow rounded-2xl bg-white dark:bg-black shadow-sm dark:shadow-none dark:border dark:border-zinc-800 cursor-pointer group transition-colors duration-300">
                 
                 <!-- Initial State: Instructions -->
                 <div id="instructionText" class="text-center p-8 transition-opacity duration-300">
-                    <div class="mb-4 text-slate-300 group-hover:text-blue-400 transition-colors duration-300">
+                    <div class="mb-4 text-zinc-300 dark:text-zinc-700 group-hover:text-blue-400 dark:group-hover:text-blue-500 transition-colors duration-300">
                         <i class="fa-regular fa-image text-8xl"></i>
                     </div>
-                    <h2 class="text-2xl font-bold text-slate-700 mb-2">ここに画像をペースト</h2>
-                    <p class="text-slate-500 mb-6">Ctrl + V (または Cmd + V)</p>
+                    <h2 class="text-2xl font-bold text-zinc-700 dark:text-zinc-200 mb-2">ここに画像をペースト</h2>
+                    <p class="text-zinc-500 dark:text-zinc-500 mb-6">Ctrl + V (または Cmd + V)</p>
                     
                     <button id="pasteBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2.5 rounded-full font-medium shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 mx-auto">
                         <i class="fa-solid fa-paste"></i>
                         クリップボードから読み込む
                     </button>
-                    <p class="text-xs text-slate-400 mt-3">※ ブラウザの権限許可が必要な場合があります</p>
+                    <p class="text-xs text-zinc-400 dark:text-zinc-600 mt-3">※ ブラウザの権限許可が必要な場合があります</p>
                 </div>
 
                 <!-- Preview State (Hidden initially) -->
                 <div id="previewContainer" class="hidden absolute inset-0 flex flex-col p-4 w-full h-full">
-                    <div class="flex-grow flex items-center justify-center overflow-hidden bg-slate-100 rounded-lg border border-slate-200 relative checkerboard">
+                    <div class="flex-grow flex items-center justify-center overflow-hidden bg-zinc-100 dark:bg-black rounded-lg border border-zinc-200 dark:border-zinc-800 relative checkerboard">
                         <img id="mainPreview" src="" alt="Preview" class="max-w-full max-h-full object-contain shadow-lg">
                         
                         <!-- Image Info Overlay -->
@@ -101,41 +132,50 @@
                     </div>
 
                     <!-- Action Bar -->
-                    <div class="mt-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-3 items-center justify-between flex-shrink-0">
+                    <div class="mt-4 bg-white dark:bg-black p-4 rounded-xl shadow-sm border border-zinc-100 dark:border-zinc-800 flex flex-col sm:flex-row gap-3 items-center justify-between flex-shrink-0 transition-colors duration-300">
                         <div class="flex items-center gap-2 w-full sm:w-auto">
-                            <input type="text" id="fileNameInput" value="clipboard_image" class="border border-slate-300 rounded px-3 py-2 text-sm w-full sm:w-48 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500" placeholder="ファイル名">
+                            <input type="text" id="fileNameInput" value="clipboard_image" class="border border-zinc-300 dark:border-zinc-700 dark:bg-black dark:text-white rounded px-3 py-2 text-sm w-full sm:w-48 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors" placeholder="ファイル名">
                         </div>
                         
-                        <div class="flex gap-2 w-full sm:w-auto justify-end">
+                        <div class="flex gap-2 w-full sm:w-auto justify-end flex-wrap">
                             <button onclick="downloadImage('png')" class="flex-1 sm:flex-none bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-download"></i> PNG
                             </button>
                             <button onclick="downloadImage('jpeg')" class="flex-1 sm:flex-none bg-sky-500 hover:bg-sky-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-2">
                                 <i class="fa-solid fa-download"></i> JPG
                             </button>
-                            <button onclick="clearCurrent()" class="px-3 py-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="クリア">
+                            <!-- New WebP Button -->
+                            <button onclick="downloadImage('webp')" class="flex-1 sm:flex-none bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-download"></i> WebP
+                            </button>
+                            <button onclick="clearCurrent()" class="px-3 py-2 text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="クリア">
                                 <i class="fa-solid fa-trash"></i>
                             </button>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Footer Attribution (Inside Main/Left Panel to be at bottom) -->
+            <div class="mt-4 text-center">
+                <p class="text-xs text-zinc-400 dark:text-zinc-600 font-medium">Developed with Gemini</p>
+            </div>
         </div>
 
         <!-- Right Panel: History Gallery -->
-        <div class="w-full lg:w-1/3 bg-white border-l border-slate-200 flex flex-col h-[300px] lg:h-full">
-            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+        <div class="w-full lg:w-1/3 bg-white dark:bg-black border-l border-zinc-200 dark:border-zinc-800 flex flex-col h-[300px] lg:h-full transition-colors duration-300">
+            <div class="p-4 border-b border-zinc-100 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-black transition-colors">
+                <h3 class="font-bold text-zinc-700 dark:text-zinc-200 flex items-center gap-2">
                     <i class="fa-solid fa-clock-rotate-left"></i> 履歴
                 </h3>
-                <button onclick="clearHistory()" class="text-xs text-slate-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 transition-colors">
+                <button onclick="clearHistory()" class="text-xs text-zinc-400 hover:text-red-500 font-medium px-2 py-1 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
                     すべて削除
                 </button>
             </div>
             
             <div id="historyList" class="flex-grow overflow-y-auto p-4 space-y-3">
                 <!-- Empty State for History -->
-                <div id="historyEmpty" class="text-center py-10 text-slate-400">
+                <div id="historyEmpty" class="text-center py-10 text-zinc-400 dark:text-zinc-600">
                     <p class="text-sm">履歴はまだありません</p>
                 </div>
                 <!-- Items will be injected here via JS -->
@@ -144,7 +184,7 @@
     </main>
 
     <!-- Notification Toast -->
-    <div id="toast" class="fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2">
+    <div id="toast" class="fixed bottom-12 left-1/2 transform -translate-x-1/2 bg-zinc-800 dark:bg-zinc-700 text-white px-6 py-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2">
         <i class="fa-solid fa-check-circle text-green-400"></i>
         <span id="toastMsg">画像を読み込みました</span>
     </div>
@@ -161,10 +201,25 @@
         const fileNameInput = document.getElementById('fileNameInput');
         const imgDimensions = document.getElementById('imgDimensions');
         const imgSize = document.getElementById('imgSize');
+        const themeIcon = document.getElementById('themeIcon');
 
         // State
         let currentBlob = null;
         let history = [];
+
+        // Theme Toggle Logic
+        function toggleTheme() {
+            const html = document.documentElement;
+            if (html.classList.contains('dark')) {
+                html.classList.remove('dark');
+                themeIcon.classList.remove('fa-sun');
+                themeIcon.classList.add('fa-moon');
+            } else {
+                html.classList.add('dark');
+                themeIcon.classList.remove('fa-moon');
+                themeIcon.classList.add('fa-sun');
+            }
+        }
 
         // Global Paste Event
         document.addEventListener('paste', handlePasteEvent);
@@ -250,23 +305,24 @@
             
             const id = Date.now();
             const historyItem = document.createElement('div');
-            historyItem.className = 'bg-slate-50 p-2 rounded-lg border border-slate-200 hover:shadow-md transition-shadow group flex gap-3 animate-fade-in';
+            // Added dark mode classes for history item (Pure Black Style)
+            historyItem.className = 'bg-zinc-50 dark:bg-black p-2 rounded-lg border border-zinc-200 dark:border-zinc-800 hover:shadow-md transition-all group flex gap-3 animate-fade-in hover:bg-white dark:hover:bg-zinc-900';
             historyItem.innerHTML = `
-                <div class="w-20 h-20 bg-slate-200 rounded overflow-hidden flex-shrink-0 relative checkerboard cursor-pointer" onclick="restoreFromHistory(${id})">
+                <div class="w-20 h-20 bg-zinc-200 dark:bg-zinc-900 rounded overflow-hidden flex-shrink-0 relative checkerboard cursor-pointer border border-transparent dark:border-zinc-800" onclick="restoreFromHistory(${id})">
                     <img src="${url}" class="w-full h-full object-cover">
                 </div>
                 <div class="flex-grow flex flex-col justify-between overflow-hidden">
                     <div class="flex justify-between items-start">
-                        <div class="text-xs text-slate-500 font-mono truncate">ID: ${id.toString().slice(-6)}</div>
-                        <button onclick="removeHistoryItem(this, ${id})" class="text-slate-300 hover:text-red-400 transition-colors p-1">
+                        <div class="text-xs text-zinc-500 dark:text-zinc-400 font-mono truncate">ID: ${id.toString().slice(-6)}</div>
+                        <button onclick="removeHistoryItem(this, ${id})" class="text-zinc-300 hover:text-red-400 transition-colors p-1">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
                     <div class="flex gap-2 mt-2">
-                        <button onclick="downloadFromHistory(${id}, 'png')" class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 hover:border-emerald-300 text-xs py-1 rounded text-slate-600 transition-colors">
+                        <button onclick="downloadFromHistory(${id}, 'png')" class="flex-1 bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:border-emerald-300 dark:hover:border-emerald-700 text-xs py-1 rounded text-zinc-600 dark:text-zinc-300 transition-colors">
                             PNG
                         </button>
-                        <button onclick="downloadFromHistory(${id}, 'jpeg')" class="flex-1 bg-white border border-slate-200 hover:bg-slate-50 hover:border-sky-300 text-xs py-1 rounded text-slate-600 transition-colors">
+                        <button onclick="downloadFromHistory(${id}, 'jpeg')" class="flex-1 bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-900 hover:border-sky-300 dark:hover:border-sky-700 text-xs py-1 rounded text-zinc-600 dark:text-zinc-300 transition-colors">
                             JPG
                         </button>
                     </div>
@@ -282,12 +338,9 @@
             // Limit history to 20 items to save memory
             if (history.length > 20) {
                 const lastItem = historyList.lastElementChild;
-                const lastData = history.shift(); // Remove from array (FIFO - actually oldest is at end of array? No, simple prepend logic means oldest is last in DOM)
-                // Correct logic: remove oldest. Since we prepend, the oldest is the last child.
+                const lastData = history.shift(); 
                 if (lastItem) {
                     historyList.removeChild(lastItem);
-                    // Also find and revoke URL to free memory
-                    // (Simplified for this demo, keeping array sync is slightly more complex)
                 }
             }
         }
@@ -312,7 +365,6 @@
             // Remove from array and revoke URL
             const index = history.findIndex(h => h.id === id);
             if (index !== -1) {
-                // URL.revokeObjectURL(history[index].url); // Optional: manage memory strictly
                 history.splice(index, 1);
             }
 
@@ -357,13 +409,20 @@
                 ctx.drawImage(img, 0, 0);
 
                 let mimeType = 'image/png';
-                if (format === 'jpeg') mimeType = 'image/jpeg';
+                let ext = 'png';
+                if (format === 'jpeg') {
+                    mimeType = 'image/jpeg';
+                    ext = 'jpg';
+                } else if (format === 'webp') {
+                    mimeType = 'image/webp';
+                    ext = 'webp';
+                }
 
-                const dataUrl = canvas.toDataURL(mimeType, 0.95); // 0.95 quality for jpg
+                const dataUrl = canvas.toDataURL(mimeType, 0.95); // 0.95 quality for lossy formats
                 
                 const link = document.createElement('a');
                 link.href = dataUrl;
-                link.download = `${filename}.${format === 'jpeg' ? 'jpg' : 'png'}`;
+                link.download = `${filename}.${ext}`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -412,7 +471,7 @@
             return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
         }
 
-        // Drag and Drop (Bonus)
+        // Drag and Drop
         pasteZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             pasteZone.classList.add('active');
@@ -445,6 +504,14 @@
                     linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
                 background-size: 20px 20px;
                 background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            }
+            /* Checkerboard adjustments for dark mode - make it darker */
+            html.dark .checkerboard {
+                background-image: 
+                    linear-gradient(45deg, #27272a 25%, transparent 25%), 
+                    linear-gradient(-45deg, #27272a 25%, transparent 25%), 
+                    linear-gradient(45deg, transparent 75%, #27272a 75%), 
+                    linear-gradient(-45deg, transparent 75%, #27272a 75%);
             }
         `;
         document.head.appendChild(style);
